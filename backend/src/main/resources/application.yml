@@ -1,0 +1,42 @@
+spring:
+  application:
+    name: vector-obfuscation-with-csfle
+  
+  # Enable Java 21 Virtual Threads for high-concurrency WebSocket streaming
+  threads:
+    virtual:
+      enabled: true
+
+  data:
+    mongodb:
+      # Injected by Docker Compose from the .env file
+      uri: ${SPRING_DATA_MONGODB_URI:mongodb://localhost:27017}
+      database: obfuscation_db
+
+# Custom CSFLE Properties
+csfle:
+  # Point directly to the Docker Secret mount path
+  local-master-key-path: /run/secrets/csfle_master_key
+  vault-namespace: ${CSFLE_VAULT_NAMESPACE:encryption_vault.keyVault}
+
+server:
+  port: 8080
+
+logging:
+  level:
+    root: INFO
+    com.ayedata: DEBUG
+  # Spring Boot 3.4+ natively supports structured JSON logging
+  structured:
+    format:
+      console: ecs
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      probes:
+        enabled: true

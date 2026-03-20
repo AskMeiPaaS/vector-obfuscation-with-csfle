@@ -1,0 +1,93 @@
+version: '3.8'
+
+networks:
+  obfuscation-net:
+    driver: bridge
+    # internal: true # Disabled to allow Ollama to pull models and updates
+
+services:
+  mongo:
+    image: mongodb/mongodb-atlas-local:latest
+    container_name: ${COMPOSE_PROJECT_NAME}-mongo
+    privileged: true
+    hostname: mongo
+    ulimits:
+      nproc: 65535
+      nofile:
+        soft: 65536
+        hard: 65536
+    healthcheck:
+      test: [ "CMD", "mongosh", "--quiet", "--eval", "db.runCommand('ping').ok" ]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 90s
+    ports:
+      - "${MONGO_PORT}:27017"
+    networks:
+      - obfuscation-net
+    volumes:
+      - mongo-data:/data/db
+      - mongo-configdb:/data/configdb
+
+  api-backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: ${COMPOSE_PROJECT_NAME}-backend
+    restart: on-failure
+    ports:
+      - "${BACKEND_PORT}:8080"
+    environment:
+      - SPRING_DATA_MONGODB_URI=${MONGO_URI}
+      - SPRING_DATA_MONGODB_DATABASE=${MONGO_DATABASE}
+      - CSFLE_VAULT_NAMESPACE=${MONGO_VAULT_NAMESPACE}
+      - VECTOR_DIMENSION=${VECTOR_DIMENSION}
+      - OLLAMA_MODEL=${OLLAMA_MODEL}
+      - SIMILARITY_THRESHOLD=${SIMILARITY_THRESHOLD}
+    secrets:
+      - csfle_master_key
+    networks:
+      - obfuscation-net
+    depends_on:
+      mongo:
+        condition: service_healthy
+      ollama-engine:
+        condition: service_started
+
+  ollama-engine:
+    image: ollama/ollama:latest
+    container_name: ${COMPOSE_PROJECT_NAME}-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    networks:
+      - obfuscation-net
+    entrypoint: /bin/sh
+    command: -c "ollama serve & sleep 20 && ollama pull ${OLLAMA_MODEL} && wait"
+
+  web-frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+        - NEXT_TELEMETRY_DISABLED=${NEXT_TELEMETRY_DISABLED}
+    container_name: ${COMPOSE_PROJECT_NAME}-frontend
+    ports:
+      - "${FRONTEND_PORT}:3000"
+    networks:
+      - obfuscation-net
+    depends_on:
+      - api-backend
+
+volumes:
+  mongo-data:
+  mongo-configdb:
+  ollama-data:
+
+    # Define the Docker Secret mapping
+secrets:
+  csfle_master_key:
+    file: ./.secrets/csfle_master_key.txt
