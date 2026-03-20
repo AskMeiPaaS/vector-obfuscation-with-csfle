@@ -249,4 +249,8 @@ MongoDB runs with `privileged: true` and a dedicated `configdb` volume to allow 
 
 ---
 
+## 📄 License
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
 *Built with ❤️ for secure vector development.*
